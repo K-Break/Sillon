@@ -4,7 +4,8 @@ import type { Track } from '../types'
 import type { PlaybackState } from '../spotify/player'
 import { useHotkeys } from '../hooks'
 import { PlayCover } from './Cover'
-import { UndoIcon } from './icons'
+import { PauseIcon, PlayIcon, UndoIcon } from './icons'
+import { VolumeControl } from './VolumeControl'
 import type { DuelVotes, Participant } from '../multiplayer/types'
 
 export interface DuelMultiplayerProps {
@@ -29,6 +30,8 @@ interface Props {
   onAnswer: (c: Choice) => void
   onUndo: () => void
   onFinish: () => void
+  onVolumeChange?: (volume: number) => void
+  onToggleMute?: () => void
 }
 
 type Side = 'left' | 'right' | 'tie'
@@ -47,6 +50,8 @@ export function DuelStage({
   onAnswer,
   onUndo,
   onFinish,
+  onVolumeChange,
+  onToggleMute,
 }: Props) {
   const duel = currentDuel(engine)
   const [picked, setPicked] = useState<Side | null>(null)
@@ -213,9 +218,20 @@ export function DuelStage({
             </div>
           )}
         </div>
-        <p className="muted">
-          environ {Math.max(remaining, 1)} duel{remaining > 1 ? 's' : ''} restant{remaining > 1 ? 's' : ''}
-        </p>
+        <div className="duel-head-right">
+          <p className="muted">
+            environ {Math.max(remaining, 1)} duel{remaining > 1 ? 's' : ''} restant{remaining > 1 ? 's' : ''}
+          </p>
+          {onVolumeChange && onToggleMute && (
+            <VolumeControl
+              volume={playback.volume}
+              muted={playback.muted}
+              onVolumeChange={onVolumeChange}
+              onToggleMute={onToggleMute}
+              className="duel-volume"
+            />
+          )}
+        </div>
       </div>
       <div className="progress" aria-hidden="true">
         <i style={{ transform: `scaleX(${duelProgress(engine)})` }} />
@@ -311,6 +327,15 @@ function DuelCard({
       <div className="meta">
         <h3 className="track-title">{track.name}</h3>
         <p className="track-artist">{track.artists}</p>
+        <button
+          type="button"
+          className={`duel-audio-btn${playback.trackId === track.id && playback.playing ? ' is-playing' : ''}`}
+          onClick={onPress}
+          aria-label={playback.trackId === track.id && playback.playing ? `Pause ${track.name}` : `Écouter ${track.name}`}
+        >
+          {playback.trackId === track.id && playback.playing ? <PauseIcon size={15} /> : <PlayIcon size={15} />}
+          <span>{playback.trackId === track.id && playback.playing ? 'Pause' : 'Écouter'}</span>
+        </button>
       </div>
 
       {voters && voters.length > 0 && (

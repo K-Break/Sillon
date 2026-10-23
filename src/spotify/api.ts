@@ -188,3 +188,20 @@ export async function startPlayback(deviceId: string, uri: string, positionMs: n
     body: JSON.stringify({ uris: [uri], position_ms: positionMs }),
   })
 }
+
+export async function pausePlayback(deviceId?: string): Promise<void> {
+  const q = deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : ''
+  await call(`/me/player/pause${q}`, { method: 'PUT' }).catch(() => {})
+}
+
+export async function resumePlayback(deviceId?: string): Promise<void> {
+  const q = deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : ''
+  await call(`/me/player/play${q}`, { method: 'PUT' }).catch(() => {})
+}
+
+export async function setPlaybackVolume(percent: number, deviceId?: string): Promise<void> {
+  const p = Math.max(0, Math.min(100, Math.round(percent)))
+  const q = deviceId ? `?volume_percent=${p}&device_id=${encodeURIComponent(deviceId)}` : `?volume_percent=${p}`
+  await call(`/me/player/volume${q}`, { method: 'PUT' }).catch(() => {})
+}
+

@@ -61,3 +61,26 @@ export const ExternalIcon = ({ size, ...p }: P) => (
     <path d="M14 5h5v5M19 5l-8 8M18 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h4" />
   </svg>
 )
+
+export const VolumeHighIcon = ({ size, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" stroke="none" />
+    <path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a9.5 9.5 0 0 1 0 14" strokeWidth={2} />
+  </svg>
+)
+
+export const VolumeLowIcon = ({ size, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" stroke="none" />
+    <path d="M15.5 8.5a5 5 0 0 1 0 7" strokeWidth={2} />
+  </svg>
+)
+
+export const VolumeMuteIcon = ({ size, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" stroke="none" />
+    <line x1="22" y1="9" x2="16" y2="15" strokeWidth={2} />
+    <line x1="16" y1="9" x2="22" y2="15" strokeWidth={2} />
+  </svg>
+)
+

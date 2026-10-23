@@ -32,7 +32,8 @@ import { TierStage } from './components/TierStage'
 import { Between } from './components/Between'
 import { DuelStage } from './components/DuelStage'
 import { Result } from './components/Result'
-import { CloseIcon, GearIcon } from './components/icons'
+import { CloseIcon, GearIcon, PauseIcon, PlayIcon } from './components/icons'
+import { VolumeControl } from './components/VolumeControl'
 import { useMultiplayer } from './multiplayer/useMultiplayer'
 import { MultiplayerCursors } from './components/MultiplayerCursors'
 import { RoomModal } from './components/RoomModal'
@@ -188,6 +189,14 @@ export default function App() {
     [playTrack],
   )
   const toggle = useCallback(() => playerRef.current?.toggle(), [])
+  const setVolume = useCallback((v: number) => {
+    playerRef.current?.setVolume(v)
+  }, [])
+  const toggleMute = useCallback(() => {
+    if (!playerRef.current) return
+    const current = playerRef.current.getState()
+    playerRef.current.setMuted(!current.muted)
+  }, [])
 
   /* ---------- Moteur ---------- */
   const commit = (next: EngineState) => {
@@ -395,6 +404,28 @@ export default function App() {
             </button>
 
             {screen === 'sort' && (
+              <div className="topbar-audio-pill">
+                <button
+                  type="button"
+                  className={`topbar-play-btn${playback.playing ? ' is-playing' : ''}`}
+                  onClick={toggle}
+                  title={playback.playing ? 'Mettre en pause (Espace)' : 'Reprendre la lecture (Espace)'}
+                  aria-label={playback.playing ? 'Mettre en pause' : 'Lecture'}
+                >
+                  {playback.playing ? <PauseIcon size={14} /> : <PlayIcon size={14} />}
+                  <span className="topbar-play-label">{playback.playing ? 'Pause' : 'Lecture'}</span>
+                </button>
+                <VolumeControl
+                  volume={playback.volume}
+                  muted={playback.muted}
+                  onVolumeChange={setVolume}
+                  onToggleMute={toggleMute}
+                  className="topbar-volume"
+                />
+              </div>
+            )}
+
+            {screen === 'sort' && (
               <div className="menu">
                 <button
                   className="icon-btn"
@@ -535,6 +566,8 @@ export default function App() {
                 onPlace={(t) => commit(placeInTier(engine, t))}
                 onSkip={() => commit(skipTrack(engine))}
                 onUndo={undo}
+                onVolumeChange={setVolume}
+                onToggleMute={toggleMute}
               />
             )}
             {engine.phase === 'between' && (
@@ -576,6 +609,8 @@ export default function App() {
                 onAnswer={(c: Choice) => commit(answerDuel(engine, c))}
                 onUndo={undo}
                 onFinish={() => commit(finishNow(engine))}
+                onVolumeChange={setVolume}
+                onToggleMute={toggleMute}
               />
             )}
           </>

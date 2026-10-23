@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import type { PlaybackState, Player } from './spotify/player'
+import { loadSavedVolume, type PlaybackState, type Player } from './spotify/player'
 
-const IDLE: PlaybackState = { trackId: null, playing: false, progress: 0, error: null }
+const IDLE: PlaybackState = {
+  trackId: null,
+  playing: false,
+  progress: 0,
+  volume: loadSavedVolume(),
+  muted: false,
+  error: null,
+}
+
 
 export function usePlaybackState(player: Player | null): PlaybackState {
   const [state, setState] = useState<PlaybackState>(IDLE)

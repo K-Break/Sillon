@@ -1,13 +1,37 @@
 import type { Track } from '../types'
 import { getToken } from './auth'
-import { ApiError, startPlayback, transferPlayback } from './api'
+import { ApiError, pausePlayback, resumePlayback, setPlaybackVolume, startPlayback, transferPlayback } from './api'
 import { PlayGate } from './gate'
+
+export function loadSavedVolume(): number {
+  try {
+    const raw = localStorage.getItem('sillon:volume')
+    if (raw !== null) {
+      const v = parseFloat(raw)
+      if (!Number.isNaN(v) && v >= 0 && v <= 1) return v
+    }
+  } catch {
+    /* ignore */
+  }
+  return 0.8
+}
+
+export function saveStoredVolume(v: number) {
+  try {
+    localStorage.setItem('sillon:volume', String(v))
+  } catch {
+    /* ignore */
+  }
+}
 
 export interface PlaybackState {
   trackId: string | null
   playing: boolean
   /** 0 → 1 */
   progress: number
+  /** 0 → 1 */
+  volume: number
+  muted: boolean
   error: string | null
 }
 
@@ -15,12 +39,22 @@ export interface Player {
   play(track: Track, startFraction: number): Promise<void>
   toggle(): void
   pause(): void
+  resume(): void
+  setVolume(volume: number): Promise<void>
+  setMuted(muted: boolean): Promise<void>
   getState(): PlaybackState
   subscribe(fn: (s: PlaybackState) => void): () => void
   dispose(): void
 }
 
-const IDLE: PlaybackState = { trackId: null, playing: false, progress: 0, error: null }
+const IDLE: PlaybackState = {
+  trackId: null,
+  playing: false,
+  progress: 0,
+  volume: loadSavedVolume(),
+  muted: false,
+  error: null,
+}
 
 abstract class Emitter {
   protected state: PlaybackState = { ...IDLE }
@@ -40,6 +74,7 @@ abstract class Emitter {
   }
 }
 
+
 /* ---------- Mode démo : progression simulée, sans audio ---------- */
 
 export class DemoPlayer extends Emitter implements Player {
@@ -47,13 +82,22 @@ export class DemoPlayer extends Emitter implements Player {
   private startedAt = 0
   private from = 0
   private duration = 1
+  private volume = loadSavedVolume()
+  private muted = false
 
   async play(track: Track, startFraction: number) {
     this.stop()
     this.duration = Math.max(track.durationMs, 1000)
     this.from = startFraction
     this.startedAt = performance.now()
-    this.set({ trackId: track.id, playing: true, progress: startFraction, error: null })
+    this.set({
+      trackId: track.id,
+      playing: true,
+      progress: startFraction,
+      volume: this.volume,
+      muted: this.muted,
+      error: null,
+    })
     this.timer = window.setInterval(() => this.tick(), 120)
   }
   private tick() {
@@ -69,7 +113,10 @@ export class DemoPlayer extends Emitter implements Player {
   }
   toggle() {
     if (this.state.playing) this.pause()
-    else if (this.state.trackId) {
+    else this.resume()
+  }
+  resume() {
+    if (this.state.trackId) {
       this.from = this.state.progress
       this.startedAt = performance.now()
       this.set({ playing: true })
@@ -79,6 +126,20 @@ export class DemoPlayer extends Emitter implements Player {
   pause() {
     this.stop()
     this.set({ playing: false })
+  }
+  async setVolume(volume: number) {
+    this.volume = Math.max(0, Math.min(1, volume))
+    saveStoredVolume(this.volume)
+    this.muted = this.volume === 0
+    this.set({ volume: this.volume, muted: this.muted })
+  }
+  async setMuted(muted: boolean) {
+    this.muted = muted
+    if (!muted && this.volume === 0) {
+      this.volume = 0.8
+      saveStoredVolume(this.volume)
+    }
+    this.set({ volume: this.volume, muted: this.muted })
   }
   dispose() {
     this.stop()
@@ -130,6 +191,8 @@ export class SpotifyPlayer extends Emitter implements Player {
   private loadedId: string | null = null
   private watchdog: number | null = null
   private cooldownNote: number | null = null
+  private volume = loadSavedVolume()
+  private muted = false
 
   constructor() {
     super()
@@ -142,7 +205,7 @@ export class SpotifyPlayer extends Emitter implements Player {
     await new Promise<void>((resolve, reject) => {
       const player = new Spotify.Player({
         name: 'Sillon',
-        volume: 0.8,
+        volume: this.muted ? 0 : this.volume,
         getOAuthToken: (cb: (t: string) => void) => {
           getToken().then((t) => t && cb(t))
         },
@@ -155,6 +218,11 @@ export class SpotifyPlayer extends Emitter implements Player {
       }
       player.addListener('ready', ({ device_id }: { device_id: string }) => {
         this.deviceId = device_id
+        try {
+          player.setVolume?.(this.muted ? 0 : this.volume)?.catch?.(() => {})
+        } catch {
+          /* ignore */
+        }
         resolve()
       })
       player.addListener('initialization_error', () =>
@@ -192,7 +260,13 @@ export class SpotifyPlayer extends Emitter implements Player {
   private emitProgress(trackId: string | null) {
     const { position, duration, paused, at } = this.last
     const pos = paused ? position : position + (performance.now() - at)
-    this.set({ trackId, playing: !paused, progress: Math.min(1, Math.max(0, pos / duration)) })
+    this.set({
+      trackId,
+      playing: !paused,
+      progress: Math.min(1, Math.max(0, pos / duration)),
+      volume: this.volume,
+      muted: this.muted,
+    })
   }
 
   private clearWatchdog() {
@@ -213,7 +287,10 @@ export class SpotifyPlayer extends Emitter implements Player {
     this.loadedId = null
     this.token++
     this.gate.failed()
-    this.player?.pause?.()
+    this.player?.pause?.()?.catch?.(() => {})
+    if (this.deviceId) {
+      pausePlayback(this.deviceId).catch(() => {})
+    }
     const note = () => {
       const left = this.gate.check()
       if (left.allowed) {
@@ -312,16 +389,82 @@ export class SpotifyPlayer extends Emitter implements Player {
     }
   }
 
-  toggle() {
-    this.player?.togglePlay?.()
+  async toggle() {
+    if (this.state.playing) {
+      await this.pause()
+    } else {
+      await this.resume()
+    }
   }
-  pause() {
+
+  async resume() {
+    if (!this.state.trackId) return
     this.token++
     this.clearWatchdog()
-    this.player?.pause?.()
-    this.last = { ...this.last, paused: true, position: this.state.progress * this.last.duration }
-    this.set({ playing: false })
+    this.last = { ...this.last, paused: false, at: performance.now() }
+    this.set({ playing: true })
+    try {
+      await this.player?.resume?.()
+    } catch {
+      try {
+        await this.player?.togglePlay?.()
+      } catch {
+        if (this.deviceId) {
+          await resumePlayback(this.deviceId).catch(() => {})
+        }
+      }
+    }
   }
+
+  async pause() {
+    this.token++
+    this.clearWatchdog()
+    const duration = this.last.duration || 1
+    const pos = Math.min(duration, Math.max(0, this.state.progress * duration))
+    this.last = { ...this.last, paused: true, position: pos, at: performance.now() }
+    this.set({ playing: false, progress: pos / duration })
+    try {
+      await this.player?.pause?.()
+    } catch {
+      if (this.deviceId) {
+        await pausePlayback(this.deviceId).catch(() => {})
+      }
+    }
+  }
+
+  async setVolume(volume: number): Promise<void> {
+    const clamped = Math.max(0, Math.min(1, volume))
+    this.volume = clamped
+    saveStoredVolume(this.volume)
+    this.muted = clamped === 0
+    const target = this.muted ? 0 : this.volume
+    try {
+      await this.player?.setVolume?.(target)
+    } catch {
+      if (this.deviceId) {
+        setPlaybackVolume(target * 100, this.deviceId).catch(() => {})
+      }
+    }
+    this.set({ volume: this.volume, muted: this.muted })
+  }
+
+  async setMuted(muted: boolean): Promise<void> {
+    this.muted = muted
+    if (!muted && this.volume === 0) {
+      this.volume = 0.8
+      saveStoredVolume(this.volume)
+    }
+    const target = this.muted ? 0 : this.volume
+    try {
+      await this.player?.setVolume?.(target)
+    } catch {
+      if (this.deviceId) {
+        setPlaybackVolume(target * 100, this.deviceId).catch(() => {})
+      }
+    }
+    this.set({ volume: this.volume, muted: this.muted })
+  }
+
   dispose() {
     this.clearWatchdog()
     if (this.cooldownNote !== null) clearTimeout(this.cooldownNote)

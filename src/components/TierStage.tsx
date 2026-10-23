@@ -4,7 +4,8 @@ import type { Track } from '../types'
 import type { PlaybackState } from '../spotify/player'
 import { useHotkeys } from '../hooks'
 import { PlayCover } from './Cover'
-import { UndoIcon } from './icons'
+import { PauseIcon, PlayIcon, UndoIcon } from './icons'
+import { VolumeControl } from './VolumeControl'
 import type { Participant, TierVotes } from '../multiplayer/types'
 
 export interface TierMultiplayerProps {
@@ -29,6 +30,8 @@ interface Props {
   onPlace: (tier: number) => void
   onSkip: () => void
   onUndo: () => void
+  onVolumeChange?: (volume: number) => void
+  onToggleMute?: () => void
 }
 
 const LEAVE_MS = 260
@@ -46,6 +49,8 @@ export function TierStage({
   onPlace,
   onSkip,
   onUndo,
+  onVolumeChange,
+  onToggleMute,
 }: Props) {
   const id = engine.queue[0]
   const track = id ? tracks.get(id) : undefined
@@ -222,6 +227,35 @@ export function TierStage({
           <h2 className="track-title">{track.name}</h2>
           <p className="track-artist">{track.artists}</p>
           {track.album && <p className="track-album">{track.album}</p>}
+
+          <div className="stage-audio-bar">
+            <button
+              type="button"
+              className={`stage-play-btn${playback.trackId === track.id && playback.playing ? ' is-playing' : ''}`}
+              onClick={() => (playback.trackId === track.id ? onToggle() : onPress(track))}
+              aria-label={
+                playback.trackId === track.id && playback.playing
+                  ? 'Mettre en pause'
+                  : 'Écouter'
+              }
+            >
+              {playback.trackId === track.id && playback.playing ? (
+                <PauseIcon size={16} />
+              ) : (
+                <PlayIcon size={16} />
+              )}
+              <span>{playback.trackId === track.id && playback.playing ? 'Pause' : 'Écouter'}</span>
+            </button>
+
+            {onVolumeChange && onToggleMute && (
+              <VolumeControl
+                volume={playback.volume}
+                muted={playback.muted}
+                onVolumeChange={onVolumeChange}
+                onToggleMute={onToggleMute}
+              />
+            )}
+          </div>
         </div>
       </div>
 
