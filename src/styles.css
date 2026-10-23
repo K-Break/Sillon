@@ -1346,15 +1346,16 @@ button.row:hover:not(:disabled) {
 }
 
 .mp-cursor {
-  position: absolute;
+  position: fixed;
+  top: 0;
+  left: 0;
   pointer-events: none;
-  transform: translate(-3px, -3px);
-  transition: top 0.08s linear, left 0.08s linear;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   z-index: 10000;
-  will-change: top, left;
+  will-change: transform;
+  transition: transform 0.02s linear;
 }
 
 .mp-cursor-pointer {
@@ -1981,4 +1982,210 @@ button.row:hover:not(:disabled) {
     font-size: 10px;
   }
 }
+
+/* ---------- Lobby & Salon d'attente ---------- */
+
+.lobby-stage {
+  width: 100%;
+  max-width: 580px;
+  margin: 20px auto 40px;
+  animation: modal-appear 0.25s var(--ease) forwards;
+}
+
+.lobby-card {
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 24px;
+  padding: 32px 28px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 24px;
+}
+
+.lobby-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #10b981;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.lobby-vinyl {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #252930 25%, #0e0f12 70%);
+  border: 2px solid var(--line-strong);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+  animation: vinyl-spin 5s linear infinite;
+}
+
+.vinyl-groove {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  display: grid;
+  place-items: center;
+}
+
+.vinyl-center {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: grid;
+  place-items: center;
+}
+
+@keyframes vinyl-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.lobby-header-text h2 {
+  font-size: 24px;
+  margin-bottom: 6px;
+}
+
+.lobby-reactions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  align-items: center;
+}
+
+.lobby-players {
+  width: 100%;
+  text-align: left;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lobby-players-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lobby-players-head h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.lobby-actions {
+  width: 100%;
+}
+
+/* Join Flow Styles */
+.join-connected-flow,
+.join-unconnected-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.spotify-connected-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  font-size: 15px;
+}
+
+.join-option-card {
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+
+.join-option-card.spotify-option {
+  border-color: rgba(16, 185, 129, 0.25);
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.option-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.or-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin: 4px 0;
+}
+
+.or-divider::before,
+.or-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--line);
+}
+
+.or-divider span {
+  padding: 0 10px;
+}
+
+.host-banner-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #f59e0b;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.host-room-banner {
+  background: rgba(245, 158, 11, 0.06);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 16px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  text-align: left;
+}
+
+.host-room-banner .lead {
+  font-size: 14px;
+  color: var(--fg);
+}
+
 

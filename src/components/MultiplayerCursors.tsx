@@ -8,25 +8,24 @@ interface Props {
 export function MultiplayerCursors({ cursors, reactions = [] }: Props) {
   return (
     <div className="multiplayer-overlay" aria-hidden="true">
-      {/* Remote Cursors */}
+      {/* High-frequency Remote Cursors */}
       {cursors.map((cursor) => {
-        const xPercent = Math.min(100, Math.max(0, cursor.x * 100))
-        const yPercent = Math.min(100, Math.max(0, cursor.y * 100))
+        const xVw = Math.min(100, Math.max(0, cursor.x * 100))
+        const yVh = Math.min(100, Math.max(0, cursor.y * 100))
 
         return (
           <div
             key={cursor.id}
             className={`mp-cursor${cursor.clicking ? ' clicking' : ''}`}
             style={{
-              left: `${xPercent}%`,
-              top: `${yPercent}%`,
+              transform: `translate3d(calc(${xVw}vw - 3px), calc(${yVh}vh - 3px), 0)`,
             }}
           >
             {/* SVG Cursor Pointer */}
             <svg
               className="mp-cursor-pointer"
-              width="24"
-              height="24"
+              width="22"
+              height="22"
               viewBox="0 0 24 24"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
@@ -35,7 +34,7 @@ export function MultiplayerCursors({ cursors, reactions = [] }: Props) {
                 d="M4.5 3.5L11.5 20.5L14.5 13.5L21.5 10.5L4.5 3.5Z"
                 fill={cursor.color}
                 stroke="#0e0f12"
-                strokeWidth="1.5"
+                strokeWidth="1.6"
                 strokeLinejoin="round"
               />
             </svg>

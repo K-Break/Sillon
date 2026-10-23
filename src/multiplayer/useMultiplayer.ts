@@ -182,7 +182,7 @@ export function useMultiplayer({
       latestY = Math.min(1, Math.max(0, e.clientY / window.innerHeight))
 
       const now = performance.now()
-      if (now - lastSent >= 35) {
+      if (now - lastSent >= 16) {
         if (scheduled !== null) {
           cancelAnimationFrame(scheduled)
           scheduled = null
@@ -233,6 +233,7 @@ export function useMultiplayer({
 
   const triggerSessionSync = useCallback(
     (session: { sourceName: string; tracks: Track[]; engine: EngineState; demo: boolean }) => {
+      currentSessionRef.current = session
       broadcastSessionSync(session)
     },
     [],

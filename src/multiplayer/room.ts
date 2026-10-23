@@ -37,6 +37,7 @@ let tierVoteAction: any = null
 let reactionAction: any = null
 let reqSyncAction: any = null
 let heartbeatTimer: number | null = null
+let syncReqInterval: number | null = null
 
 function updatePresenceList(cb: (p: Participant[]) => void) {
   const list: Participant[] = []
@@ -133,6 +134,10 @@ export function initRoom(
 
     // Incoming Session Sync
     syncAction.onMessage = (sync: RoomSyncPayload) => {
+      if (syncReqInterval !== null) {
+        clearInterval(syncReqInterval)
+        syncReqInterval = null
+      }
       callbacks.onSync(sync)
     }
 
@@ -185,20 +190,20 @@ export function initRoom(
 
     // Incoming Sync Requests
     reqSyncAction.onMessage = (_: { from: string }, { peerId }: { peerId: string }) => {
-      if (myParticipant?.isHost && currentSessionGetter) {
+      if (currentSessionGetter && syncAction) {
         const session = currentSessionGetter()
         if (session) {
-          syncAction?.send(
+          syncAction.send(
             {
               sourceName: session.sourceName,
               tracks: session.tracks,
               engine: session.engine,
               demo: session.demo,
-              hostId: selfId,
+              hostId: myParticipant?.id || selfId,
               timestamp: Date.now(),
             },
             { target: peerId },
-          )
+          ).catch(() => {})
         }
       }
     }
@@ -206,8 +211,25 @@ export function initRoom(
     // Peer join
     room.onPeerJoin = (peerId: string) => {
       // Send our presence immediately to the newly joined peer
-      if (myParticipant) {
-        presenceAction?.send(myParticipant, { target: peerId })
+      if (myParticipant && presenceAction) {
+        presenceAction.send(myParticipant, { target: peerId }).catch(() => {})
+      }
+      // If we already have a session, send it to the joining peer immediately
+      if (currentSessionGetter && syncAction) {
+        const session = currentSessionGetter()
+        if (session) {
+          syncAction.send(
+            {
+              sourceName: session.sourceName,
+              tracks: session.tracks,
+              engine: session.engine,
+              demo: session.demo,
+              hostId: myParticipant?.id || selfId,
+              timestamp: Date.now(),
+            },
+            { target: peerId },
+          ).catch(() => {})
+        }
       }
     }
 
@@ -244,12 +266,21 @@ export function initRoom(
       }
     }, 3000)
 
-    // Request sync from any existing peers
-    if (!myParticipant.isHost) {
-      setTimeout(() => {
-        reqSyncAction?.send({ from: selfId })
-      }, 500)
-    }
+    // Request sync from any existing peers, and repeat every 2s until session is loaded
+    setTimeout(() => {
+      reqSyncAction?.send({ from: selfId }).catch(() => {})
+    }, 400)
+
+    if (syncReqInterval !== null) clearInterval(syncReqInterval)
+    syncReqInterval = window.setInterval(() => {
+      const current = currentSessionGetter?.()
+      if (!current && reqSyncAction) {
+        reqSyncAction.send({ from: selfId }).catch(() => {})
+      } else if (current && syncReqInterval !== null) {
+        clearInterval(syncReqInterval)
+        syncReqInterval = null
+      }
+    }, 2000)
 
     return selfId
   } catch (e) {
@@ -270,14 +301,21 @@ export function broadcastSessionSync(session: {
   engine: EngineState
   demo: boolean
 }) {
-  if (syncAction && myParticipant) {
-    syncAction
-      .send({
-        ...session,
-        hostId: myParticipant.id,
-        timestamp: Date.now(),
-      })
-      .catch(() => {})
+  if (syncAction) {
+    const payload = {
+      ...session,
+      hostId: myParticipant?.id || selfId,
+      timestamp: Date.now(),
+    }
+    // Instant broadcast
+    syncAction.send(payload).catch(() => {})
+    // Redundant retry broadcast at 350ms and 1000ms to guarantee zero packet-loss desync
+    setTimeout(() => {
+      if (syncAction) syncAction.send(payload).catch(() => {})
+    }, 350)
+    setTimeout(() => {
+      if (syncAction) syncAction.send(payload).catch(() => {})
+    }, 1000)
   }
 }
 
@@ -345,6 +383,10 @@ export function leaveRoom() {
   if (heartbeatTimer !== null) {
     clearInterval(heartbeatTimer)
     heartbeatTimer = null
+  }
+  if (syncReqInterval !== null) {
+    clearInterval(syncReqInterval)
+    syncReqInterval = null
   }
   if (activeRoom) {
     try {

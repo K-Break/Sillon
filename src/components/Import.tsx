@@ -19,11 +19,16 @@ interface Props {
   meId: string | null
   onStart: (tracks: Track[], sourceName: string) => void
   onError: (message: string) => void
+  multiplayerInfo?: {
+    roomId: string
+    isHost: boolean
+    participantsCount: number
+  }
 }
 
 const MIN_TRACKS = 2
 
-export function Import({ demo, meId, onStart, onError }: Props) {
+export function Import({ demo, meId, onStart, onError, multiplayerInfo }: Props) {
   const [tab, setTab] = useState<Tab>('playlists')
   const [playlists, setPlaylists] = useState<PlaylistSummary[] | null>(null)
   const [selected, setSelected] = useState<Track[]>([])
@@ -155,6 +160,25 @@ export function Import({ demo, meId, onStart, onError }: Props) {
 
   return (
     <section className="import">
+      {multiplayerInfo && (
+        <div className="host-room-banner">
+          <div className="host-banner-pill">
+            <span className="live-dot" />
+            <span>Salle {multiplayerInfo.roomId} · {multiplayerInfo.isHost ? '👑 Chef du groupe' : 'Membre'}</span>
+          </div>
+          <p className="lead" style={{ margin: '4px 0 0', fontSize: '14px' }}>
+            {multiplayerInfo.isHost ? (
+              <>
+                Tu es le chef du groupe ! Choisis la playlist ci-dessous : dès que tu cliques sur <strong>« Lancer le tri »</strong>,
+                la partie débutera automatiquement pour tous les joueurs (<strong>{multiplayerInfo.participantsCount} connecté{multiplayerInfo.participantsCount > 1 ? 's' : ''}</strong>).
+              </>
+            ) : (
+              <>En attente que le chef du groupe lance la partie...</>
+            )}
+          </p>
+        </div>
+      )}
+
       <div className="import-sources">
         <h2>Choisis tes sons</h2>
         <div className="tabs" role="tablist">

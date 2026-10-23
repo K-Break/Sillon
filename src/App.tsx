@@ -37,6 +37,7 @@ import { useMultiplayer } from './multiplayer/useMultiplayer'
 import { MultiplayerCursors } from './components/MultiplayerCursors'
 import { RoomModal } from './components/RoomModal'
 import { JoinBanner } from './components/JoinBanner'
+import { Lobby } from './components/Lobby'
 import { getLocalPlayerProfile } from './multiplayer/identity'
 import type { EngineActionPayload, RoomSyncPayload } from './multiplayer/types'
 
@@ -70,9 +71,11 @@ export default function App() {
   const playback = usePlaybackState(player)
   const [muted, setMuted] = useState(false)
 
-  // Pending room invitation in URL query param ?room=XYZ
+  // Pending room invitation in URL query param ?room=XYZ or persisted across Spotify OAuth redirects
   const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(() => {
-    const code = new URLSearchParams(window.location.search).get('room')
+    const urlCode = new URLSearchParams(window.location.search).get('room')
+    const savedCode = sessionStorage.getItem('sillon:pending_room')
+    const code = urlCode || savedCode
     return code ? code.toUpperCase() : null
   })
 
@@ -267,7 +270,8 @@ export default function App() {
     return (await savePlaylist(name, uris)).url
   }
 
-  const stepIndex = screen === 'import' ? 0 : screen === 'sort' ? 1 : screen === 'result' ? 2 : -1
+  const isWaitingInLobby = Boolean(multiplayer.roomId && !multiplayer.isHost && !session)
+  const stepIndex = isWaitingInLobby ? -1 : screen === 'import' ? 0 : screen === 'sort' ? 1 : screen === 'result' ? 2 : -1
   const engine = session?.engine
   const canUndo = history.length > 0
   const showPlaybackError = screen === 'sort' && playback.error && !muted
@@ -283,12 +287,19 @@ export default function App() {
       {pendingInviteCode && !multiplayer.roomId && (
         <JoinBanner
           roomCode={pendingInviteCode}
+          spotifyUser={me}
           defaultName={me?.name || getLocalPlayerProfile().name}
           onJoin={(name, color) => {
+            sessionStorage.removeItem('sillon:pending_room')
             multiplayer.joinRoom(pendingInviteCode, false, name, color)
             setPendingInviteCode(null)
           }}
+          onLoginWithSpotify={() => {
+            sessionStorage.setItem('sillon:pending_room', pendingInviteCode)
+            login().catch((e) => setError(describe(e)))
+          }}
           onDecline={() => {
+            sessionStorage.removeItem('sillon:pending_room')
             setPendingInviteCode(null)
             const url = new URL(window.location.href)
             url.searchParams.delete('room')
@@ -308,6 +319,9 @@ export default function App() {
         onClose={() => setRoomModalOpen(false)}
         onCreate={(code) => {
           multiplayer.createRoom(code)
+          if (!session) {
+            setScreen('import')
+          }
         }}
         onJoin={(code, asHost, name, color) => {
           multiplayer.joinRoom(code, asHost, name, color)
@@ -435,7 +449,18 @@ export default function App() {
       )}
 
       <main className="main">
-        {screen === 'welcome' && (
+        {isWaitingInLobby && (
+          <Lobby
+            roomCode={multiplayer.roomId!}
+            hostName={multiplayer.participants.find((p) => p.isHost)?.name || 'Le chef du groupe'}
+            participants={multiplayer.participants}
+            myId={multiplayer.myId}
+            onLeave={() => multiplayer.leaveRoom()}
+            onReaction={(emoji) => multiplayer.sendEmojiReaction(emoji)}
+          />
+        )}
+
+        {!isWaitingInLobby && screen === 'welcome' && (
           <Welcome
             configured={isConfigured()}
             saved={saved}
@@ -449,8 +474,22 @@ export default function App() {
           />
         )}
 
-        {screen === 'import' && (
-          <Import demo={demo} meId={me?.id ?? null} onStart={startSession} onError={onError} />
+        {!isWaitingInLobby && screen === 'import' && (
+          <Import
+            demo={demo}
+            meId={me?.id ?? null}
+            onStart={startSession}
+            onError={onError}
+            multiplayerInfo={
+              multiplayer.roomId
+                ? {
+                    roomId: multiplayer.roomId,
+                    isHost: multiplayer.isHost,
+                    participantsCount: multiplayer.participants.length,
+                  }
+                : undefined
+            }
+          />
         )}
 
         {screen === 'sort' && engine && (
