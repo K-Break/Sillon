@@ -4,13 +4,24 @@ import type { Session } from '../storage'
 interface Props {
   configured: boolean
   saved: Session | null
+  user?: { name: string } | null
   onLogin: () => void
+  onStart: () => void
   onDemo: () => void
   onResume: () => void
   onOpenMultiplayer: () => void
 }
 
-export function Welcome({ configured, saved, onLogin, onDemo, onResume, onOpenMultiplayer }: Props) {
+export function Welcome({
+  configured,
+  saved,
+  user,
+  onLogin,
+  onStart,
+  onDemo,
+  onResume,
+  onOpenMultiplayer,
+}: Props) {
   const done = saved
     ? saved.engine.phase === 'tier'
       ? Math.round(tierProgress(saved.engine) * 100)
@@ -29,13 +40,23 @@ export function Welcome({ configured, saved, onLogin, onDemo, onResume, onOpenMu
   return (
     <section className="welcome">
       <div className="welcome-copy">
+        {user && (
+          <div className="welcome-user-pill">
+            <span className="live-dot" />
+            <span>Connecté : <strong>{user.name}</strong></span>
+          </div>
+        )}
         <h1>Classe ta playlist, un duel à la fois.</h1>
         <p className="lead">
           Importe une playlist, écoute deux sons, garde celui que tu préfères. Sillon construit l'ordre à ta place, puis
           l'enregistre dans ton compte Spotify.
         </p>
         <div className="actions">
-          {configured ? (
+          {user ? (
+            <button className="btn primary" onClick={onStart}>
+              Commencer le tri
+            </button>
+          ) : configured ? (
             <button className="btn primary" onClick={onLogin}>
               Se connecter avec Spotify
             </button>
@@ -65,8 +86,22 @@ export function Welcome({ configured, saved, onLogin, onDemo, onResume, onOpenMu
           </button>
         )}
       </div>
-      <div className="grooves" aria-hidden="true">
-        <span />
+
+      {/* Musical Animated Vinyl Spiral with Harmonic Gradient */}
+      <div className="grooves-container" aria-hidden="true">
+        <div className="grooves-ambient-glow" />
+        <div className="grooves">
+          <div className="groove-sweep" />
+          <div className="groove-ring ring-1" />
+          <div className="groove-ring ring-2" />
+          <div className="groove-ring ring-3" />
+          <div className="groove-needle-arc" />
+          <div className="groove-needle-arc-2" />
+          <div className="grooves-center">
+            <span className="center-beat" />
+            <span className="center-hole" />
+          </div>
+        </div>
       </div>
     </section>
   )

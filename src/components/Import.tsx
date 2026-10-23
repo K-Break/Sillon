@@ -44,6 +44,7 @@ export function Import({ demo, meId, onStart, onError, multiplayerInfo }: Props)
 
   const [linkText, setLinkText] = useState('')
   const [linkNote, setLinkNote] = useState<string | null>(null)
+  const [playlistTracksMap, setPlaylistTracksMap] = useState<Map<string, string[]>>(new Map())
 
   const selectedIds = useMemo(() => new Set(selected.map((t) => t.id)), [selected])
 
@@ -100,13 +101,40 @@ export function Import({ demo, meId, onStart, onError, multiplayerInfo }: Props)
     if (source && !name) setName(source)
   }
 
-  const addPlaylist = async (p: PlaylistSummary) => {
-    if (busy || added.has(p.id) || !p.readable) return
+  const clearSelection = () => {
+    setSelected([])
+    setAdded(new Set())
+    setPlaylistTracksMap(new Map())
+    setName(null)
+  }
+
+  const togglePlaylist = async (p: PlaylistSummary) => {
+    if (busy || !p.readable) return
+
+    // If already added, toggle off (remove all tracks from this playlist)
+    if (added.has(p.id)) {
+      const toRemove = new Set(playlistTracksMap.get(p.id) ?? [])
+      setSelected((prev) => prev.filter((t) => !toRemove.has(t.id)))
+      setAdded((s) => {
+        const next = new Set(s)
+        next.delete(p.id)
+        return next
+      })
+      setPlaylistTracksMap((prev) => {
+        const next = new Map(prev)
+        next.delete(p.id)
+        return next
+      })
+      return
+    }
+
+    // Otherwise add
     setBusy(p.id)
     try {
       const list = demo ? DEMO_TRACKS : await getPlaylistTracks(p.id)
       addTracks(list, p.name)
       setAdded((s) => new Set(s).add(p.id))
+      setPlaylistTracksMap((prev) => new Map(prev).set(p.id, list.map((t) => t.id)))
     } catch (e) {
       onError((e as Error).message)
     } finally {
@@ -162,14 +190,24 @@ export function Import({ demo, meId, onStart, onError, multiplayerInfo }: Props)
     <section className="import">
       {multiplayerInfo && (
         <div className="host-room-banner">
-          <div className="host-banner-pill">
-            <span className="live-dot" />
-            <span>Salle {multiplayerInfo.roomId} · {multiplayerInfo.isHost ? '👑 Chef du groupe' : 'Membre'}</span>
+          <div className="host-room-banner-top">
+            <div className="host-banner-pill">
+              <span className="live-dot" />
+              <span>Salle {multiplayerInfo.roomId} · {multiplayerInfo.isHost ? '👑 Chef du groupe' : 'Membre'}</span>
+            </div>
+            {multiplayerInfo.isHost && canStart && (
+              <button
+                className="btn primary start-group-btn"
+                onClick={() => onStart(selected, name ?? 'Ma sélection')}
+              >
+                🚀 Lancer le tri pour le groupe ({selected.length} sons)
+              </button>
+            )}
           </div>
-          <p className="lead" style={{ margin: '4px 0 0', fontSize: '14px' }}>
+          <p className="lead" style={{ margin: '6px 0 0', fontSize: '14px' }}>
             {multiplayerInfo.isHost ? (
               <>
-                Tu es le chef du groupe ! Choisis la playlist ci-dessous : dès que tu cliques sur <strong>« Lancer le tri »</strong>,
+                Tu es le chef du groupe ! Choisis une playlist ci-dessous. Dès que tu lances le tri,
                 la partie débutera automatiquement pour tous les joueurs (<strong>{multiplayerInfo.participantsCount} connecté{multiplayerInfo.participantsCount > 1 ? 's' : ''}</strong>).
               </>
             ) : (
@@ -199,28 +237,49 @@ export function Import({ demo, meId, onStart, onError, multiplayerInfo }: Props)
           <div className="list" role="tabpanel">
             {playlists === null && <p className="empty">Chargement de tes playlists…</p>}
             {playlists?.length === 0 && <p className="empty">Aucune playlist trouvée sur ce compte.</p>}
-            {playlists?.map((p) => (
-              <button
-                key={p.id}
-                className="row"
-                disabled={!p.readable || added.has(p.id)}
-                onClick={() => addPlaylist(p)}
-                title={p.readable ? undefined : "Spotify ne permet plus de lire le contenu d'une playlist qui ne t'appartient pas."}
-              >
-                <span className="thumb">
-                  <Cover track={{ id: p.id, image: p.image }} />
-                </span>
-                <span className="row-text">
-                  <strong>{p.name}</strong>
-                  <small>
-                    {p.readable ? `${p.total} sons` : 'Lecture non autorisée par Spotify'}
-                  </small>
-                </span>
-                <span className="row-end">
-                  {busy === p.id ? <span className="spinner" /> : added.has(p.id) ? <CheckIcon /> : p.readable && <PlusIcon />}
-                </span>
-              </button>
-            ))}
+            {playlists?.map((p) => {
+              const isAdded = added.has(p.id)
+              return (
+                <button
+                  key={p.id}
+                  className={`row${isAdded ? ' added-active' : ''}`}
+                  disabled={!p.readable || (busy !== null && busy !== p.id)}
+                  onClick={() => togglePlaylist(p)}
+                  title={
+                    !p.readable
+                      ? "Spotify ne permet plus de lire le contenu d'une playlist qui ne t'appartient pas."
+                      : isAdded
+                        ? 'Cliquer pour retirer cette playlist de la sélection'
+                        : 'Cliquer pour ajouter cette playlist'
+                  }
+                >
+                  <span className="thumb">
+                    <Cover track={{ id: p.id, image: p.image }} />
+                  </span>
+                  <span className="row-text">
+                    <strong>{p.name}</strong>
+                    <small>
+                      {p.readable
+                        ? isAdded
+                          ? `${p.total} sons · Sélectionnée (cliquer pour retirer)`
+                          : `${p.total} sons`
+                        : 'Lecture non autorisée par Spotify'}
+                    </small>
+                  </span>
+                  <span className="row-end">
+                    {busy === p.id ? (
+                      <span className="spinner" />
+                    ) : isAdded ? (
+                      <span className="badge-added-indicator" title="Retirer cette playlist">
+                        <CheckIcon />
+                      </span>
+                    ) : (
+                      p.readable && <PlusIcon />
+                    )}
+                  </span>
+                </button>
+              )
+            })}
             {playlists?.some((p) => !p.readable) && (
               <p className="hint">
                 Pour classer la playlist de quelqu'un d'autre, copie ses sons dans une de tes playlists, ou colle leurs
@@ -275,8 +334,15 @@ export function Import({ demo, meId, onStart, onError, multiplayerInfo }: Props)
 
       <aside className="import-selection">
         <div className="selection-head">
-          <h2>Ta sélection</h2>
-          <span className="count-pill">{selected.length}</span>
+          <div className="selection-head-title">
+            <h2>Ta sélection</h2>
+            <span className="count-pill">{selected.length}</span>
+          </div>
+          {selected.length > 0 && (
+            <button type="button" className="link clear-selection-btn" onClick={clearSelection}>
+              Tout retirer
+            </button>
+          )}
         </div>
         <div className="list selection-list">
           {selected.length === 0 && <p className="empty">Ajoute au moins {MIN_TRACKS} sons pour commencer.</p>}
@@ -301,10 +367,40 @@ export function Import({ demo, meId, onStart, onError, multiplayerInfo }: Props)
             disabled={!canStart}
             onClick={() => onStart(selected, name ?? 'Ma sélection')}
           >
-            Commencer le tri{selected.length > 0 ? ` · ${selected.length} sons` : ''}
+            {multiplayerInfo?.isHost ? '🚀 Lancer le tri pour le groupe' : 'Commencer le tri'}
+            {selected.length > 0 ? ` · ${selected.length} sons` : ''}
           </button>
         </div>
       </aside>
+
+      {/* Floating Sticky Launch Bar */}
+      {canStart && (
+        <div className="import-sticky-bar">
+          <div className="sticky-bar-info">
+            <div className="sticky-bar-text">
+              <strong>{name ?? 'Sélection prête'}</strong>
+              <span className="count-pill">{selected.length} sons</span>
+            </div>
+            <small className="sticky-bar-hint">
+              {multiplayerInfo?.isHost
+                ? `👑 Prêt pour les ${multiplayerInfo.participantsCount} joueurs connectés`
+                : 'Prêt à être classé'}
+            </small>
+          </div>
+          <div className="sticky-bar-actions">
+            <button type="button" className="btn ghost" onClick={clearSelection}>
+              Tout retirer
+            </button>
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() => onStart(selected, name ?? 'Ma sélection')}
+            >
+              {multiplayerInfo?.isHost ? '🚀 Lancer le tri pour le groupe' : 'Commencer le tri'}
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   )
 }

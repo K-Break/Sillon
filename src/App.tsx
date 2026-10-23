@@ -146,13 +146,15 @@ export default function App() {
     let alive = true
     ;(async () => {
       try {
-        if (location.pathname === '/callback') await handleCallback()
+        if (location.pathname === '/callback') {
+          await handleCallback()
+          setScreen('import')
+        }
         if (await getToken()) {
           const profile = await getMe()
           if (!alive) return
           setMe(profile)
           setAuth('in')
-          setScreen((s) => (s === 'welcome' ? 'import' : s))
           preloadSdk().catch(() => {})
         } else if (alive) setAuth('out')
       } catch (e) {
@@ -344,7 +346,7 @@ export default function App() {
 
       <header className="topbar">
         <div className="topbar-inner">
-          <button className="wordmark" onClick={() => screen === 'welcome' || setScreen(session ? screen : 'welcome')}>
+          <button className="wordmark" onClick={() => setScreen('welcome')}>
             <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true">
               <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" strokeWidth="2" opacity=".4" />
               <circle cx="16" cy="16" r="8.5" fill="none" stroke="currentColor" strokeWidth="2" opacity=".7" />
@@ -471,7 +473,9 @@ export default function App() {
           <Welcome
             configured={isConfigured()}
             saved={saved}
+            user={me}
             onLogin={() => login().catch((e) => setError(describe(e)))}
+            onStart={() => setScreen('import')}
             onDemo={() => {
               setDemo(true)
               setScreen('import')
