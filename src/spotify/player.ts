@@ -265,20 +265,40 @@ export class SpotifyPlayer extends Emitter implements Player {
       await this.ready
       if (mine !== this.token) return
       this.gate.started()
-      if (!this.transferred) {
-        await transferPlayback(this.deviceId!)
-        this.transferred = true
-        await sleep(350)
+      let started = false
+      let lastError: unknown = null
+
+      for (let attempt = 0; attempt < 3 && !started; attempt++) {
         if (mine !== this.token) return
-      }
-      try {
-        await startPlayback(this.deviceId!, track.uri, position)
-      } catch (e) {
-        if (e instanceof ApiError && e.status === 404) {
-          await transferPlayback(this.deviceId!)
-          await sleep(500)
+        try {
+          if (!this.transferred) {
+            try {
+              await transferPlayback(this.deviceId!)
+              this.transferred = true
+              await sleep(250)
+            } catch {
+              // If transfer fails with 404, device might still be propagating in Spotify's cloud
+              if (attempt === 0) {
+                await sleep(400)
+              }
+            }
+          }
+          if (mine !== this.token) return
           await startPlayback(this.deviceId!, track.uri, position)
-        } else throw e
+          this.transferred = true
+          started = true
+        } catch (e) {
+          lastError = e
+          if (e instanceof ApiError && (e.status === 404 || e.status === 502) && attempt < 2) {
+            await sleep(attempt === 0 ? 500 : 900)
+            continue
+          }
+          throw e
+        }
+      }
+
+      if (!started && lastError) {
+        throw lastError
       }
       if (mine !== this.token) return
       this.last = { position, duration: track.durationMs || 1, paused: false, at: performance.now() }

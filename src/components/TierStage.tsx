@@ -99,10 +99,15 @@ export function TierStage({
   hostPlaceRef.current = onPlace
   const hostSkipRef = useRef(onSkip)
   hostSkipRef.current = onSkip
-  const isResolving = useRef(false)
+  const resolvedTrackIdRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!mpActive || !track || isResolving.current) return
+    resolvedTrackIdRef.current = null
+    setLeaving(null)
+  }, [id])
+
+  useEffect(() => {
+    if (!mpActive || !track || !id || resolvedTrackIdRef.current === id) return
 
     let winningTier: number | 'skip' | null = null
 
@@ -132,27 +137,33 @@ export function TierStage({
     }
 
     if (winningTier !== null) {
-      isResolving.current = true
+      resolvedTrackIdRef.current = id
       setLeaving(winningTier)
 
-      const timer = window.setTimeout(() => {
-        if (multiplayer?.isHost) {
-          if (winningTier === 'skip') {
+      const chosenTier = winningTier
+      const isHost = Boolean(multiplayer?.isHost)
+
+      window.setTimeout(() => {
+        if (isHost) {
+          if (chosenTier === 'skip') {
             hostSkipRef.current()
           } else {
-            hostPlaceRef.current(winningTier as number)
+            hostPlaceRef.current(chosenTier as number)
           }
         }
-        setLeaving(null)
-        if (typeof winningTier === 'number') {
-          setPopped(winningTier)
+        if (typeof chosenTier === 'number') {
+          setPopped(chosenTier)
         }
-        isResolving.current = false
       }, LEAVE_MS)
 
-      return () => clearTimeout(timer)
+      // Safety watchdog: if host or network lags, restore visibility after 3s so UI is never stuck
+      window.setTimeout(() => {
+        if (resolvedTrackIdRef.current === id) {
+          setLeaving(null)
+        }
+      }, 3000)
     }
-  }, [mpActive, track, totalVotesCast, totalPlayers, majorityThreshold, multiplayer?.isHost, votersByTier])
+  }, [mpActive, track, id, totalVotesCast, totalPlayers, majorityThreshold, multiplayer?.isHost, currentVotes])
 
   const handleTierClick = (tier: number) => {
     if (mpActive && multiplayer) {

@@ -44,12 +44,17 @@ function updatePresenceList(cb: (p: Participant[]) => void) {
   if (myParticipant) list.push(myParticipant)
   peers.forEach((p) => list.push(p))
 
-  // Determine host: if local participant claims host, or if no host and local is lowest peerId
-  const hasHost = list.some((p) => p.isHost)
-  if (!hasHost && myParticipant) {
-    const allIds = list.map((p) => p.id).sort()
-    if (allIds[0] === myParticipant.id) {
-      myParticipant.isHost = true
+  // Ensure there is strictly one host if multiple participants claim host
+  const hosts = list.filter((p) => p.isHost)
+  if (hosts.length > 1) {
+    // If multiple claim host, keep only the one with the lowest ID
+    hosts.sort((a, b) => a.id.localeCompare(b.id))
+    const soleHostId = hosts[0].id
+    list.forEach((p) => {
+      p.isHost = p.id === soleHostId
+    })
+    if (myParticipant) {
+      myParticipant.isHost = myParticipant.id === soleHostId
     }
   }
 
@@ -323,13 +328,16 @@ export function broadcastEngineAction(engine: EngineState, description?: string)
   duelVotesState = { duelKey: '', votes: {} }
   tierVotesState = { trackId: '', votes: {} }
   if (engineAction) {
-    engineAction
-      .send({
-        engine,
-        actionId: Math.random().toString(36).slice(2, 9),
-        description,
-      })
-      .catch(() => {})
+    const payload = {
+      engine,
+      actionId: Math.random().toString(36).slice(2, 9),
+      description,
+    }
+    engineAction.send(payload).catch(() => {})
+    // Redundant retry to guarantee 100% peer state alignment
+    setTimeout(() => {
+      if (engineAction) engineAction.send(payload).catch(() => {})
+    }, 350)
   }
 }
 

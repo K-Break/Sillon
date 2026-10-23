@@ -91,7 +91,14 @@ export default function App() {
   playerRef.current = player
 
   const makePlayer = useCallback((isDemo: boolean) => {
-    playerRef.current?.dispose()
+    const current = playerRef.current
+    if (current) {
+      const isCurrentDemo = current instanceof DemoPlayer
+      if (isCurrentDemo === isDemo) {
+        return
+      }
+      current.dispose()
+    }
     setPlayer(isDemo ? new DemoPlayer() : new SpotifyPlayer())
   }, [])
 

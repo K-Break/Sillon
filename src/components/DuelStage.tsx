@@ -111,10 +111,15 @@ export function DuelStage({
   // Check if majority is met
   const hostRef = useRef(onAnswer)
   hostRef.current = onAnswer
-  const isResolving = useRef(false)
+  const resolvedDuelKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!mpActive || !duel || isResolving.current) return
+    resolvedDuelKeyRef.current = null
+    setPicked(null)
+  }, [duelKey])
+
+  useEffect(() => {
+    if (!mpActive || !duel || !duelKey || resolvedDuelKeyRef.current === duelKey) return
 
     let winningSide: Side | null = null
 
@@ -128,22 +133,26 @@ export function DuelStage({
     }
 
     if (winningSide) {
-      isResolving.current = true
+      resolvedDuelKeyRef.current = duelKey
       setPicked(winningSide)
       const choice: Choice =
         winningSide === 'tie' ? 'tie' : winningSide === 'left' ? (flip ? 'opp' : 'cur') : flip ? 'cur' : 'opp'
 
-      const timer = window.setTimeout(() => {
-        if (multiplayer?.isHost) {
+      const isHost = Boolean(multiplayer?.isHost)
+      window.setTimeout(() => {
+        if (isHost) {
           hostRef.current(choice)
         }
-        setPicked(null)
-        isResolving.current = false
       }, ANSWER_MS)
 
-      return () => clearTimeout(timer)
+      // Safety watchdog: restore picking state after 3s if host or network hangs
+      window.setTimeout(() => {
+        if (resolvedDuelKeyRef.current === duelKey) {
+          setPicked(null)
+        }
+      }, 3000)
     }
-  }, [mpActive, duel, flip, leftCount, rightCount, tieCount, totalVotesCast, totalPlayers, majorityThreshold, multiplayer?.isHost])
+  }, [mpActive, duel, duelKey, flip, leftCount, rightCount, tieCount, totalVotesCast, totalPlayers, majorityThreshold, multiplayer?.isHost])
 
   const handlePick = (side: Side) => {
     if (mpActive && multiplayer) {
