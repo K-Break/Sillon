@@ -211,7 +211,7 @@ export function Result({
                 title="Affichage grille Tier List S·A·B·C·D"
               >
                 <GridIcon size={16} />
-                <span>Tier List S·A·B·C·D</span>
+                <span>Tier List</span>
               </button>
               <button
                 type="button"
@@ -233,10 +233,6 @@ export function Result({
             )}
           </div>
         </div>
-
-        <p className="result-hint-text">
-          💡 Clique sur une pochette pour écouter. Glisse-dépose les titres pour ajuster leur palier ou leur position.
-        </p>
 
         {/* MODE 1 : GRILLE TIER LIST VISUELLE (S A B C D) */}
         {viewMode === 'tierlist' && (
