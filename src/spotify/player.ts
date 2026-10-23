@@ -2,6 +2,7 @@ import type { Track } from '../types'
 import { getToken } from './auth'
 import { ApiError, pausePlayback, resumePlayback, setPlaybackVolume, startPlayback, transferPlayback } from './api'
 import { PlayGate } from './gate'
+import { getOrFetchAudioPreview } from './audioCache'
 
 export function loadSavedVolume(): number {
   try {
@@ -472,3 +473,175 @@ export class SpotifyPlayer extends Emitter implements Player {
     this.player?.disconnect?.()
   }
 }
+
+/* ---------- Lecteur Hybride : Cache local 30s + repli Spotify Web SDK ---------- */
+
+export class HybridPlayer extends Emitter implements Player {
+  private spotify: SpotifyPlayer
+  private audio: HTMLAudioElement | null = null
+  private activeSource: 'cache' | 'spotify' | 'none' = 'none'
+  private token = 0
+  private volume = loadSavedVolume()
+  private muted = false
+  private currentTrack: Track | null = null
+  private spotifyUnsub: (() => void) | null = null
+
+  constructor() {
+    super()
+    this.spotify = new SpotifyPlayer()
+
+    if (typeof Audio !== 'undefined') {
+      const a = new Audio()
+      a.preload = 'auto'
+
+      a.addEventListener('timeupdate', () => {
+        if (this.activeSource === 'cache' && this.currentTrack) {
+          const dur = a.duration || 30
+          this.set({
+            trackId: this.currentTrack.id,
+            playing: !a.paused,
+            progress: dur > 0 ? Math.min(1, Math.max(0, a.currentTime / dur)) : 0,
+            volume: this.volume,
+            muted: this.muted,
+          })
+        }
+      })
+
+      a.addEventListener('ended', () => {
+        if (this.activeSource === 'cache') {
+          this.set({ playing: false, progress: 1 })
+        }
+      })
+
+      a.addEventListener('pause', () => {
+        if (this.activeSource === 'cache') {
+          this.set({ playing: false })
+        }
+      })
+
+      a.addEventListener('play', () => {
+        if (this.activeSource === 'cache' && this.currentTrack) {
+          this.set({ playing: true, trackId: this.currentTrack.id, error: null })
+        }
+      })
+
+      this.audio = a
+    }
+
+    this.spotifyUnsub = this.spotify.subscribe((st) => {
+      if (this.activeSource === 'spotify') {
+        this.set(st)
+      }
+    })
+  }
+
+  async play(track: Track, startFraction: number): Promise<void> {
+    const mine = ++this.token
+    this.currentTrack = track
+
+    // 1. Tente de récupérer ou charger l'extrait 30s en cache local (0 requête Spotify)
+    try {
+      const localUrl = await getOrFetchAudioPreview(track)
+      if (mine !== this.token) return
+
+      if (localUrl && this.audio) {
+        this.activeSource = 'cache'
+        // Pause le lecteur Spotify pour éviter deux flux simultanés
+        this.spotify.pause()
+
+        this.audio.src = localUrl
+        this.audio.volume = this.muted ? 0 : this.volume
+
+        const onLoaded = () => {
+          if (startFraction > 0 && this.audio && this.audio.duration) {
+            this.audio.currentTime = this.audio.duration * startFraction
+          }
+        }
+        this.audio.addEventListener('loadedmetadata', onLoaded, { once: true })
+
+        await this.audio.play().catch(() => {})
+        this.set({
+          trackId: track.id,
+          playing: !this.audio.paused,
+          progress: startFraction,
+          volume: this.volume,
+          muted: this.muted,
+          error: null,
+        })
+        return
+      }
+    } catch {
+      /* fallback to Spotify */
+    }
+
+    if (mine !== this.token) return
+
+    // 2. Repli sur le lecteur Spotify Web Playback SDK
+    if (this.audio) {
+      this.audio.pause()
+    }
+    this.activeSource = 'spotify'
+    await this.spotify.play(track, startFraction)
+  }
+
+  toggle() {
+    if (this.activeSource === 'cache' && this.audio) {
+      if (this.audio.paused) this.audio.play().catch(() => {})
+      else this.audio.pause()
+    } else {
+      this.spotify.toggle()
+    }
+  }
+
+  pause() {
+    if (this.audio) this.audio.pause()
+    this.spotify.pause()
+    this.set({ playing: false })
+  }
+
+  resume() {
+    if (this.activeSource === 'cache' && this.audio) {
+      this.audio.play().catch(() => {})
+    } else {
+      this.spotify.resume()
+    }
+  }
+
+  async setVolume(volume: number): Promise<void> {
+    this.volume = Math.max(0, Math.min(1, volume))
+    saveStoredVolume(this.volume)
+    this.muted = this.volume === 0
+    if (this.audio) {
+      this.audio.volume = this.muted ? 0 : this.volume
+    }
+    await this.spotify.setVolume(volume)
+    this.set({ volume: this.volume, muted: this.muted })
+  }
+
+  async setMuted(muted: boolean): Promise<void> {
+    this.muted = muted
+    if (!muted && this.volume === 0) {
+      this.volume = 0.8
+      saveStoredVolume(this.volume)
+    }
+    if (this.audio) {
+      this.audio.volume = this.muted ? 0 : this.volume
+    }
+    await this.spotify.setMuted(muted)
+    this.set({ volume: this.volume, muted: this.muted })
+  }
+
+  dispose() {
+    if (this.audio) {
+      this.audio.pause()
+      this.audio.src = ''
+      this.audio = null
+    }
+    if (this.spotifyUnsub) {
+      this.spotifyUnsub()
+      this.spotifyUnsub = null
+    }
+    this.spotify.dispose()
+  }
+}
+

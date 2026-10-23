@@ -84,3 +84,35 @@ export const VolumeMuteIcon = ({ size, ...p }: P) => (
   </svg>
 )
 
+export const GridIcon = ({ size, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <rect x="3" y="3" width="7" height="7" rx="1.5" />
+    <rect x="14" y="3" width="7" height="7" rx="1.5" />
+    <rect x="3" y="14" width="7" height="7" rx="1.5" />
+    <rect x="14" y="14" width="7" height="7" rx="1.5" />
+  </svg>
+)
+
+export const ListIcon = ({ size, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <line x1="8" y1="6" x2="21" y2="6" strokeWidth={2} />
+    <line x1="8" y1="12" x2="21" y2="12" strokeWidth={2} />
+    <line x1="8" y1="18" x2="21" y2="18" strokeWidth={2} />
+    <line x1="3" y1="6" x2="3.01" y2="6" strokeWidth={2.5} />
+    <line x1="3" y1="12" x2="3.01" y2="12" strokeWidth={2.5} />
+    <line x1="3" y1="18" x2="3.01" y2="18" strokeWidth={2.5} />
+  </svg>
+)
+
+export const ArrowUpIcon = ({ size, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <path d="M12 19V5M5 12l7-7 7 7" strokeWidth={2} />
+  </svg>
+)
+
+export const ArrowDownIcon = ({ size, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <path d="M12 5v14M19 12l-7 7-7-7" strokeWidth={2} />
+  </svg>
+)
+

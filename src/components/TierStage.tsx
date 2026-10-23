@@ -331,11 +331,6 @@ export function TierStage({
             )}
           </div>
         </div>
-        <p className="keys">
-          {mpActive
-            ? 'Vote majoritaire · 1 à 5 pour voter · espace pour écouter sur ton Spotify'
-            : '1 à 5 pour ranger · espace pour écouter · S pour passer · Z pour annuler'}
-        </p>
       </div>
     </section>
   )

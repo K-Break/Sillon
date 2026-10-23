@@ -34,16 +34,6 @@ export function Between({ engine, canUndo, onRefine, onSkipRefine, onUndo }: Pro
           </div>
         ))}
       </div>
-      <p className="explain">
-        {duels > 0 ? (
-          <>
-            Affiner l'ordre demande environ <strong>{duels} duels</strong>. Tu peux t'arrêter quand tu veux : on commence
-            par le haut de ta liste, donc ce qui compte le plus est classé en premier.
-          </>
-        ) : (
-          <>Chaque palier ne contient qu'un son ou aucun : il n'y a rien à départager.</>
-        )}
-      </p>
       <div className="actions">
         {duels > 0 && (
           <button className="btn primary" onClick={onRefine}>

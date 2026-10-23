@@ -174,7 +174,7 @@ export function Import({ demo, meId, onStart, onError, multiplayerInfo }: Props)
       setLinkText('')
       setLinkNote(
         `${ok} son${ok > 1 ? 's' : ''} ajouté${ok > 1 ? 's' : ''}` +
-          (skipped ? `, ${skipped} lien${skipped > 1 ? 's' : ''} ignoré${skipped > 1 ? 's' : ''} (illisible ou playlist qui ne t'appartient pas).` : '.'),
+        (skipped ? `, ${skipped} lien${skipped > 1 ? 's' : ''} ignoré${skipped > 1 ? 's' : ''} (illisible ou playlist qui ne t'appartient pas).` : '.'),
       )
     } catch (e) {
       onError((e as Error).message)
@@ -193,14 +193,14 @@ export function Import({ demo, meId, onStart, onError, multiplayerInfo }: Props)
           <div className="host-room-banner-top">
             <div className="host-banner-pill">
               <span className="live-dot" />
-              <span>Salle {multiplayerInfo.roomId} · {multiplayerInfo.isHost ? '👑 Chef du groupe' : 'Membre'}</span>
+              <span>Salle {multiplayerInfo.roomId} · {multiplayerInfo.isHost ? 'Chef du groupe' : 'Membre'}</span>
             </div>
             {multiplayerInfo.isHost && canStart && (
               <button
                 className="btn primary start-group-btn"
                 onClick={() => onStart(selected, name ?? 'Ma sélection')}
               >
-                🚀 Lancer le tri pour le groupe ({selected.length} sons)
+                Lancer le tri pour le groupe ({selected.length} sons)
               </button>
             )}
           </div>
@@ -367,7 +367,7 @@ export function Import({ demo, meId, onStart, onError, multiplayerInfo }: Props)
             disabled={!canStart}
             onClick={() => onStart(selected, name ?? 'Ma sélection')}
           >
-            {multiplayerInfo?.isHost ? '🚀 Lancer le tri pour le groupe' : 'Commencer le tri'}
+            {multiplayerInfo?.isHost ? 'Lancer le tri pour le groupe' : 'Commencer le tri'}
             {selected.length > 0 ? ` · ${selected.length} sons` : ''}
           </button>
         </div>
@@ -383,7 +383,7 @@ export function Import({ demo, meId, onStart, onError, multiplayerInfo }: Props)
             </div>
             <small className="sticky-bar-hint">
               {multiplayerInfo?.isHost
-                ? `👑 Prêt pour les ${multiplayerInfo.participantsCount} joueurs connectés`
+                ? `Prêt pour les ${multiplayerInfo.participantsCount} joueurs connectés`
                 : 'Prêt à être classé'}
             </small>
           </div>
@@ -396,7 +396,7 @@ export function Import({ demo, meId, onStart, onError, multiplayerInfo }: Props)
               className="btn primary"
               onClick={() => onStart(selected, name ?? 'Ma sélection')}
             >
-              {multiplayerInfo?.isHost ? '🚀 Lancer le tri pour le groupe' : 'Commencer le tri'}
+              {multiplayerInfo?.isHost ? 'Lancer le tri pour le groupe' : 'Commencer le tri'}
             </button>
           </div>
         </div>

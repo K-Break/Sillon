@@ -15,7 +15,8 @@ import {
 import type { Track } from './types'
 import { ApiError, getMe, savePlaylist } from './spotify/api'
 import { getToken, handleCallback, isConfigured, login, logout } from './spotify/auth'
-import { DemoPlayer, SpotifyPlayer, preloadSdk, type Player } from './spotify/player'
+import { DemoPlayer, HybridPlayer, preloadSdk, type Player } from './spotify/player'
+import { prefetchAudioTracks } from './spotify/audioCache'
 import {
   clearSession,
   loadSession,
@@ -100,7 +101,7 @@ export default function App() {
       }
       current.dispose()
     }
-    setPlayer(isDemo ? new DemoPlayer() : new SpotifyPlayer())
+    setPlayer(isDemo ? new DemoPlayer() : new HybridPlayer())
   }, [])
 
   /* ---------- Multijoueur ---------- */
@@ -113,6 +114,7 @@ export default function App() {
         demo: sync.demo,
         updatedAt: sync.timestamp,
       }
+      prefetchAudioTracks(sync.tracks)
       setSession(remoteSession)
       setHistory([])
       setScreen(sync.engine.phase === 'done' ? 'result' : 'sort')
@@ -147,7 +149,11 @@ export default function App() {
     let alive = true
     ;(async () => {
       try {
-        if (location.pathname === '/callback') {
+        const url = new URL(location.href)
+        const isCallback = location.pathname === '/callback' || url.searchParams.has('code')
+        const shouldGoToImport = sessionStorage.getItem('sillon:redirect_to_import') === '1' || isCallback
+
+        if (isCallback) {
           await handleCallback()
           setScreen('import')
         }
@@ -157,6 +163,10 @@ export default function App() {
           setMe(profile)
           setAuth('in')
           preloadSdk().catch(() => {})
+          if (shouldGoToImport) {
+            sessionStorage.removeItem('sillon:redirect_to_import')
+            setScreen('import')
+          }
         } else if (alive) setAuth('out')
       } catch (e) {
         if (!alive) return
@@ -230,6 +240,7 @@ export default function App() {
   /* ---------- Navigation ---------- */
   const startSession = (tracks: Track[], sourceName: string) => {
     makePlayer(demo)
+    prefetchAudioTracks(tracks)
     const newSession: Session = {
       sourceName,
       tracks,
@@ -253,6 +264,7 @@ export default function App() {
       return
     }
     makePlayer(saved.demo)
+    prefetchAudioTracks(saved.tracks)
     setSession(saved)
     setHistory([])
     setScreen(saved.engine.phase === 'done' ? 'result' : 'sort')
@@ -280,10 +292,11 @@ export default function App() {
 
   const tracksById = useMemo(() => new Map((session?.tracks ?? []).map((t) => [t.id, t])), [session?.tracks])
 
-  const saveToSpotify = async (name: string) => {
+  const saveToSpotify = async (name: string, customIds?: string[]) => {
     if (!session) throw new Error('Aucune session.')
-    const uris = finalOrder(session.engine)
-      .map((r) => tracksById.get(r.id)?.uri)
+    const ids = customIds ?? finalOrder(session.engine).map((r) => r.id)
+    const uris = ids
+      .map((id) => tracksById.get(id)?.uri)
       .filter((u): u is string => Boolean(u))
     return (await savePlaylist(name, uris)).url
   }
@@ -622,6 +635,8 @@ export default function App() {
             tracks={tracksById}
             sourceName={session.sourceName}
             demo={session.demo}
+            playback={playback}
+            onPressTrack={pressCover}
             onSave={saveToSpotify}
             onRestart={restart}
           />

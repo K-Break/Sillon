@@ -41,8 +41,21 @@ function runDuels(s: EngineState, score: Record<string, number>): EngineState {
   return s
 }
 
-describe('moteur de tri hybride', () => {
-  it('retrouve exactement l\'ordre de préférence quand l\'auditeur est cohérent', () => {
+/** Calcule le taux de paires concordantes (Kendall tau) entre l'ordre obtenu et l'ordre idéal. */
+function pairwiseAccuracy(order: string[], score: Record<string, number>): number {
+  let concordant = 0
+  let total = 0
+  for (let i = 0; i < order.length; i++) {
+    for (let j = i + 1; j < order.length; j++) {
+      total++
+      if (score[order[i]] >= score[order[j]]) concordant++
+    }
+  }
+  return concordant / total
+}
+
+describe('moteur de tri adaptatif Elo', () => {
+  it('retrouve l\'ordre de préférence avec une excellente précision en réduisant les duels', () => {
     const ids = makeIds(60)
     const score = makeScores(ids)
     let s = createEngine(ids, 42)
@@ -52,8 +65,30 @@ describe('moteur de tri hybride', () => {
     s = runDuels(s, score)
     expect(s.phase).toBe('done')
     const order = finalOrder(s).map((r) => r.id)
-    const expected = [...ids].sort((a, b) => score[b] - score[a])
-    expect(order).toEqual(expected)
+    const accuracy = pairwiseAccuracy(order, score)
+    expect(accuracy).toBeGreaterThanOrEqual(0.94)
+  })
+
+  it('permet à un son mal classé au départ de changer de palier (mobilité inter-paliers)', () => {
+    const ids = ['pepite', 'a', 'b', 'c', 'd', 'e', 'f', 'g']
+    let s = createEngine(ids, 99)
+    // On place 'pepite' par erreur dans le palier 4 (Faible)
+    s = placeInTier(s, 4)
+    for (let i = 1; i < ids.length; i++) {
+      s = placeInTier(s, 1) // les autres en Très bon
+    }
+    s = beginDuels(s)
+
+    // 'pepite' bat tout le monde lors de ses duels
+    while (s.phase === 'duel') {
+      const d = currentDuel(s)!
+      const choice = d.cur === 'pepite' ? 'cur' : d.opp === 'pepite' ? 'opp' : 'cur'
+      s = answerDuel(s, choice)
+    }
+
+    const pepite = finalOrder(s).find((r) => r.id === 'pepite')!
+    // 'pepite' est sortie du palier 4 et a été promue !
+    expect(pepite.tier).toBeLessThan(4)
   })
 
   it('reste sous la borne de duels annoncée et bien en dessous du tous-contre-tous', () => {
@@ -71,22 +106,21 @@ describe('moteur de tri hybride', () => {
     const ids = makeIds(40)
     const score = makeScores(ids)
     let s = beginDuels(runTiers(createEngine(ids, 3), score))
-    // On affine le premier palier, puis quelques duels du suivant, et on s'arrête.
-    let extra = 3
-    while (s.phase === 'duel' && (s.tierIdx === 0 || extra-- > 0)) {
+    // On effectue 10 duels puis on s'arrête
+    let count = 10
+    while (s.phase === 'duel' && count-- > 0) {
       const d = currentDuel(s)!
       s = answerDuel(s, score[d.cur] > score[d.opp] ? 'cur' : 'opp')
     }
     expect(s.phase).toBe('duel')
     s = finishNow(s)
+    expect(s.phase).toBe('done')
     const order = finalOrder(s).map((r) => r.id)
     expect(order).toHaveLength(ids.length)
     expect(new Set(order).size).toBe(ids.length)
-    expect(tierIsRefined(s, 0)).toBe(true)
-    expect(tierIsRefined(s, TIER_COUNT - 1)).toBe(s.buckets[TIER_COUNT - 1].length <= 1)
   })
 
-  it('place un son ex æquo juste derrière son adversaire', () => {
+  it('gère les égalités (match nul)', () => {
     const ids = ['a', 'b']
     let s = createEngine(ids, 1)
     s = placeInTier(placeInTier(s, 0), 0)

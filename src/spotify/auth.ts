@@ -59,6 +59,7 @@ export async function login(): Promise<void> {
   const state = randomString(16)
   sessionStorage.setItem(VERIFIER_KEY, verifier)
   sessionStorage.setItem(STATE_KEY, state)
+  sessionStorage.setItem('sillon:redirect_to_import', '1')
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
     response_type: 'code',

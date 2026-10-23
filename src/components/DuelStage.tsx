@@ -66,16 +66,23 @@ export function DuelStage({
   const rightId = flip ? curId : oppId
   const duelKey = curId && oppId ? `${curId}:${oppId}` : ''
 
-  // Nouveau son à classer : on lance celui de gauche. Sinon on lance le nouvel adversaire.
+  // Nouveau son à classer : temporisation pour éviter de mitrailler l'audio si l'utilisateur vote vite
   useEffect(() => {
     if (!autoplay || !curId || !oppId) return
     const first = lastCur.current !== curId
     lastCur.current = curId
     const target = first ? leftId : oppId
     const t = target ? tracks.get(target) : undefined
-    if (t) autoRef.current(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [curId, oppId, autoplay])
+    if (!t) return
+
+    const timer = window.setTimeout(() => {
+      autoRef.current(t)
+    }, 550)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [curId, oppId, autoplay, leftId])
 
   // Single-player choice
   const chooseSingle = (side: Side) => {
@@ -207,7 +214,15 @@ export function DuelStage({
       <div className="duel-head">
         <div className="duel-title-group">
           <p>
-            Affinage · <strong>{TIERS[engine.tierIdx]}</strong>
+            {duel.tierCur !== undefined && duel.tierOpp !== undefined && duel.tierCur !== duel.tierOpp ? (
+              <>
+                Duel inter-paliers · <strong>{TIERS[duel.tierCur]} vs {TIERS[duel.tierOpp]}</strong>
+              </>
+            ) : (
+              <>
+                Affinage · <strong>{TIERS[engine.tierIdx]}</strong>
+              </>
+            )}
           </p>
           {mpActive && (
             <div className="mp-vote-indicator">
@@ -222,15 +237,6 @@ export function DuelStage({
           <p className="muted">
             environ {Math.max(remaining, 1)} duel{remaining > 1 ? 's' : ''} restant{remaining > 1 ? 's' : ''}
           </p>
-          {onVolumeChange && onToggleMute && (
-            <VolumeControl
-              volume={playback.volume}
-              muted={playback.muted}
-              onVolumeChange={onVolumeChange}
-              onToggleMute={onToggleMute}
-              className="duel-volume"
-            />
-          )}
         </div>
       </div>
       <div className="progress" aria-hidden="true">
@@ -249,6 +255,35 @@ export function DuelStage({
           onPress={() => onPress(left)}
           onPick={() => handlePick('left')}
         />
+        <div className="duel-center-divider">
+          <span className="duel-vs-label">VS</span>
+          <div className="tie-container">
+            <button
+              className={`btn tie-btn${mpActive && currentVotes[multiplayer?.myId ?? ''] === 'tie' ? ' active' : ''}${picked === 'tie' ? ' picked' : ''}`}
+              onClick={() => handlePick('tie')}
+              title="Déclarer une égalité (Raccourci : Flèche Bas)"
+            >
+              <span>Égalité</span>
+              <kbd>↓</kbd>
+              {tieCount > 0 && <span className="tie-count">({tieCount})</span>}
+            </button>
+            {mpActive && votersBySide.tie.length > 0 && (
+              <div className="voters-chips mini">
+                {votersBySide.tie.map((p) => (
+                  <span
+                    key={p.id}
+                    className="voter-chip mini"
+                    style={{ backgroundColor: p.color }}
+                    title={`${p.name} a voté égalité`}
+                  >
+                    {p.name.slice(0, 1)}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
         <DuelCard
           key={right.id}
           track={right}
@@ -266,38 +301,10 @@ export function DuelStage({
         <button className="btn ghost" onClick={onUndo} disabled={!canUndo || picked !== null}>
           <UndoIcon size={16} /> Annuler
         </button>
-        <div className="tie-container">
-          <button
-            className={`btn${mpActive && currentVotes[multiplayer?.myId ?? ''] === 'tie' ? ' active' : ''}`}
-            onClick={() => handlePick('tie')}
-          >
-            Égalité {tieCount > 0 && `(${tieCount})`}
-          </button>
-          {mpActive && votersBySide.tie.length > 0 && (
-            <div className="voters-chips mini">
-              {votersBySide.tie.map((p) => (
-                <span
-                  key={p.id}
-                  className="voter-chip mini"
-                  style={{ backgroundColor: p.color }}
-                  title={`${p.name} a voté égalité`}
-                >
-                  {p.name.slice(0, 1)}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
         <button className="btn ghost" onClick={onFinish}>
           Terminer maintenant
         </button>
       </div>
-
-      <p className="keys">
-        {mpActive
-          ? 'Vote majoritaire activé · ← → voter · ↓ égalité · 1 et 2 pour écouter sur ton Spotify'
-          : '← → choisir · ↓ égalité · 1 et 2 pour écouter · espace pour pause · Z pour annuler'}
-      </p>
     </section>
   )
 }
