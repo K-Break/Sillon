@@ -36,6 +36,7 @@ let duelVoteAction: any = null
 let tierVoteAction: any = null
 let reactionAction: any = null
 let reqSyncAction: any = null
+let heartbeatTimer: number | null = null
 
 function updatePresenceList(cb: (p: Participant[]) => void) {
   const list: Participant[] = []
@@ -88,8 +89,14 @@ export function initRoom(
 
     // Incoming Presence
     presenceAction.onMessage = (data: Participant, { peerId }: { peerId: string }) => {
+      const isNew = !peers.has(peerId)
       peers.set(peerId, { ...data, id: peerId })
       updatePresenceList(callbacks.onPresence)
+
+      // Mutual handshake: reply with our presence if this peer is newly discovered
+      if (isNew && myParticipant) {
+        presenceAction?.send(myParticipant, { target: peerId })
+      }
 
       // If we are host and someone new joined, send them the current session state
       if (myParticipant?.isHost && currentSessionGetter) {
@@ -222,8 +229,20 @@ export function initRoom(
       updatePresenceList(callbacks.onPresence)
     }
 
-    // Trigger initial presence report
+    // Trigger initial presence report and periodic heartbeat
     updatePresenceList(callbacks.onPresence)
+    setTimeout(() => {
+      if (myParticipant && presenceAction) {
+        presenceAction.send(myParticipant).catch(() => {})
+      }
+    }, 200)
+
+    if (heartbeatTimer !== null) clearInterval(heartbeatTimer)
+    heartbeatTimer = window.setInterval(() => {
+      if (myParticipant && presenceAction) {
+        presenceAction.send(myParticipant).catch(() => {})
+      }
+    }, 3000)
 
     // Request sync from any existing peers
     if (!myParticipant.isHost) {
@@ -323,6 +342,10 @@ export function broadcastReaction(emoji: string, x: number, y: number) {
 }
 
 export function leaveRoom() {
+  if (heartbeatTimer !== null) {
+    clearInterval(heartbeatTimer)
+    heartbeatTimer = null
+  }
   if (activeRoom) {
     try {
       activeRoom.leave()

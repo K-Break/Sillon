@@ -38,10 +38,7 @@ export function useMultiplayer({
   onRemoteEngineAction,
   onError,
 }: Props) {
-  const [roomId, setRoomId] = useState<string | null>(() => {
-    const params = new URLSearchParams(window.location.search)
-    return params.get('room')?.toUpperCase() || null
-  })
+  const [roomId, setRoomId] = useState<string | null>(null)
   const [participants, setParticipants] = useState<Participant[]>([])
   const [remoteCursors, setRemoteCursors] = useState<Map<string, RemoteCursor>>(new Map())
   const [duelVotes, setDuelVotes] = useState<DuelVotes>({ duelKey: '', votes: {} })
